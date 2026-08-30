@@ -1,35 +1,81 @@
 /* ==========================================================================
-   Semantica-Learning — 交互逻辑
+   Semantica-Learning — 交互逻辑（移动端优先）
    ========================================================================== */
 (function () {
   "use strict";
 
-  // ── SPA 导航 ──────────────────────────────────────────
+  // ── 章节顺序（用于上一章 / 下一章导航） ────────────────
+  const chapterOrder = [
+    "overview", "concepts", "architecture", "pipeline", "kg",
+    "reasoning", "ontology", "provenance", "decisions", "conflicts",
+    "storage", "playground",
+    "tutorial", "stage-0", "stage-1", "stage-2", "stage-3",
+    "stage-4", "stage-5", "stage-6", "stage-7", "stage-8", "quiz",
+  ];
+
   const navItems = document.querySelectorAll(".nav-item[data-chapter]");
   const chapters = document.querySelectorAll("section.chapter");
   const progressBar = document.getElementById("progressBar");
+  const sidebar = document.querySelector(".sidebar");
+  const overlay = document.getElementById("overlay");
+  const headerTitle = document.getElementById("headerTitle");
+  const menuBtn = document.getElementById("menuBtn");
 
-  function activateChapter(id) {
-    chapters.forEach((c) => c.classList.toggle("active", c.id === id));
-    navItems.forEach((n) => n.classList.toggle("active", n.dataset.chapter === id));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  function chapterTitle(id) {
+    const section = document.getElementById(id);
+    if (section) {
+      const h1 = section.querySelector("h1");
+      if (h1) return h1.textContent.trim();
+    }
+    const nav = document.querySelector(`.nav-item[data-chapter="${id}"]`);
+    if (nav) return nav.textContent.trim();
+    return "";
   }
 
+  function activateChapter(id, updateHash) {
+    chapters.forEach((c) => c.classList.toggle("active", c.id === id));
+    navItems.forEach((n) => n.classList.toggle("active", n.dataset.chapter === id));
+    if (updateHash !== false) history.pushState(null, "", "#" + id);
+    if (headerTitle) headerTitle.textContent = chapterTitle(id);
+    updateBottomNav(id);
+    closeDrawer();
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  // ── 底部导航 ──────────────────────────────────────────
+  function updateBottomNav(id) {
+    const idx = chapterOrder.indexOf(id);
+    const prevBtn = document.getElementById("bnPrev");
+    const nextBtn = document.getElementById("bnNext");
+    const prevTitle = document.getElementById("bnPrevTitle");
+    const nextTitle = document.getElementById("bnNextTitle");
+    if (!prevBtn || !nextBtn) return;
+    const prevId = chapterOrder[idx - 1];
+    const nextId = chapterOrder[idx + 1];
+    prevBtn.disabled = !prevId;
+    nextBtn.disabled = !nextId;
+    if (prevTitle) prevTitle.textContent = prevId ? chapterTitle(prevId) : "";
+    if (nextTitle) nextTitle.textContent = nextId ? chapterTitle(nextId) : "";
+    prevBtn.onclick = () => prevId && activateChapter(prevId);
+    nextBtn.onclick = () => nextId && activateChapter(nextId);
+  }
+
+  // ── 抽屉导航（移动端） ─────────────────────────────────
+  function openDrawer() { if (sidebar) sidebar.classList.add("open"); if (overlay) overlay.classList.add("show"); }
+  function closeDrawer() { if (sidebar) sidebar.classList.remove("open"); if (overlay) overlay.classList.remove("show"); }
+  if (menuBtn) menuBtn.addEventListener("click", openDrawer);
+  if (overlay) overlay.addEventListener("click", closeDrawer);
+
+  // ── 路由 ──────────────────────────────────────────────
   function routeFromHash() {
     const id = location.hash.replace("#", "") || "overview";
-    if (document.getElementById(id)) {
-      activateChapter(id);
-    } else {
-      activateChapter("overview");
-    }
+    activateChapter(document.getElementById(id) ? id : "overview", false);
   }
 
   navItems.forEach((item) => {
     item.addEventListener("click", (e) => {
       e.preventDefault();
-      const id = item.dataset.chapter;
-      history.pushState(null, "", "#" + id);
-      activateChapter(id);
+      activateChapter(item.dataset.chapter);
     });
   });
 
@@ -44,15 +90,18 @@
   }, { passive: true });
 
   // ── 代码高亮（轻量） ──────────────────────────────────
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   function highlight(el) {
     if (el.dataset.highlighted) return;
     el.dataset.highlighted = "1";
     const lang = el.closest(".codeblock")?.dataset.lang || "";
-    if (lang === "text" || lang === "bash") {
+    if (lang === "text" || lang === "bash" || lang === "json" || lang === "shell") {
       el.innerHTML = escapeHtml(el.textContent);
       return;
     }
-    // 简单 token 化高亮（TS / Python 通用关键字）
     const text = el.textContent;
     const html = escapeHtml(text)
       .replace(/(&quot;.*?&quot;|&#39;.*?&#39;|`.*?`)/g, '<span class="tok-str">$1</span>')
@@ -63,23 +112,36 @@
     el.innerHTML = html;
   }
 
-  function escapeHtml(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-
   document.querySelectorAll(".codeblock pre code").forEach(highlight);
 
   // ── 复制按钮 ──────────────────────────────────────────
+  function fallbackCopy(text, btn) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); flashCopied(btn); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  function flashCopied(btn) {
+    const orig = btn.textContent;
+    btn.textContent = "已复制 ✓";
+    setTimeout(() => (btn.textContent = orig), 1500);
+  }
+
   document.querySelectorAll(".codeblock").forEach((block) => {
     const btn = block.querySelector(".copy-btn");
     const code = block.querySelector("pre code");
     if (!btn || !code) return;
     btn.addEventListener("click", () => {
-      navigator.clipboard.writeText(code.textContent).then(() => {
-        const orig = btn.textContent;
-        btn.textContent = "已复制 ✓";
-        setTimeout(() => (btn.textContent = orig), 1500);
-      });
+      const text = code.textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => flashCopied(btn)).catch(() => fallbackCopy(text, btn));
+      } else {
+        fallbackCopy(text, btn);
+      }
     });
   });
 
@@ -124,39 +186,28 @@
     exampleBtns.forEach((btn) => {
       btn.addEventListener("click", () => {
         const src = document.getElementById(btn.dataset.example);
-        if (codeArea && src) {
-          codeArea.value = src.textContent.trim();
-        }
+        if (codeArea && src) codeArea.value = src.textContent.trim();
         if (runBtn) runBtn.click();
       });
     });
   }
 
   if (runBtn && codeArea && output) {
-    runBtn.addEventListener("click", () => {
-      runPlayground(codeArea.value, output);
-    });
+    runBtn.addEventListener("click", () => runPlayground(codeArea.value, output));
   }
 
   function runPlayground(src, outEl) {
     const lines = [];
     const log = (...args) => {
-      lines.push(args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" "));
+      lines.push(args.map((a) => (typeof a === "object" && a !== null ? JSON.stringify(a, null, 2) : String(a))).join(" "));
     };
-    // 沙箱：暴露 SemanticaPlayground + console.log 捕获
     const sandbox = {
       SemanticaPlayground: window.SemanticaPlayground,
       ContextGraph: window.SemanticaPlayground?.ContextGraph,
       DecisionEngine: window.SemanticaPlayground?.DecisionEngine,
       Reasoner: window.SemanticaPlayground?.Reasoner,
       console: { log },
-      JSON,
-      Math,
-      Date,
-      Map,
-      Set,
-      Array,
-      Object,
+      JSON, Math, Date, Map, Set, Array, Object, Number, String, Boolean,
     };
     try {
       const fn = new Function(...Object.keys(sandbox), `"use strict";\n${src}`);
@@ -171,18 +222,22 @@
 
   // ── 图可视化（canvas 力导向） ─────────────────────────
   const graphCanvas = document.getElementById("graphCanvas");
-  if (graphCanvas) {
-    renderDemoGraph(graphCanvas);
-  }
+  if (graphCanvas) renderDemoGraph(graphCanvas);
 
   function renderDemoGraph(canvas) {
     const ctx = canvas.getContext("2d");
     const wrap = canvas.parentElement;
-    const W = wrap.clientWidth;
-    const H = 420;
-    canvas.width = W * (window.devicePixelRatio || 1);
-    canvas.height = H * (window.devicePixelRatio || 1);
-    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    function resize() {
+      const W = wrap.clientWidth;
+      const H = window.innerWidth < 680 ? 300 : 420;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { W, H };
+    }
+    let { W, H } = resize();
 
     const nodes = [
       { id: "Alice", type: "Person", x: 0, y: 0, color: "#7c5cff" },
@@ -198,24 +253,21 @@
       { s: 1, t: 4, label: "located_in" },
     ];
 
-    // 初始环形布局
     nodes.forEach((n, i) => {
       const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
-      n.x = W / 2 + Math.cos(angle) * 140;
-      n.y = H / 2 + Math.sin(angle) * 120;
+      n.x = W / 2 + Math.cos(angle) * (W < 500 ? 90 : 140);
+      n.y = H / 2 + Math.sin(angle) * (W < 500 ? 80 : 120);
     });
 
     function step() {
       ctx.clearRect(0, 0, W, H);
-      // 力导向一次迭代
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[j].x - nodes[i].x;
           const dy = nodes[j].y - nodes[i].y;
           const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
           const f = 800 / (d * d);
-          const fx = (dx / d) * f;
-          const fy = (dy / d) * f;
+          const fx = (dx / d) * f, fy = (dy / d) * f;
           nodes[i].x -= fx; nodes[i].y -= fy;
           nodes[j].x += fx; nodes[j].y += fy;
         }
@@ -224,12 +276,11 @@
         const a = nodes[e.s], b = nodes[e.t];
         const dx = b.x - a.x, dy = b.y - a.y;
         const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-        const ideal = 130;
+        const ideal = W < 500 ? 90 : 130;
         const f = (d - ideal) * 0.02;
         const fx = (dx / d) * f, fy = (dy / d) * f;
         a.x += fx; a.y += fy; b.x -= fx; b.y -= fy;
       });
-      // 中心约束
       nodes.forEach((n) => {
         n.x += (W / 2 - n.x) * 0.004;
         n.y += (H / 2 - n.y) * 0.004;
@@ -237,43 +288,29 @@
         n.y = Math.max(40, Math.min(H - 40, n.y));
       });
 
-      // 画边
       edges.forEach((e) => {
         const a = nodes[e.s], b = nodes[e.t];
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = "rgba(124,92,255,.4)";
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        // 边标签
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = "rgba(124,92,255,.4)"; ctx.lineWidth = 1.5; ctx.stroke();
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-        ctx.fillStyle = "#9aa0c0";
-        ctx.font = "11px sans-serif";
+        ctx.fillStyle = "#9aa0c0"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
         ctx.fillText(e.label, mx, my - 4);
       });
-      // 画节点
       nodes.forEach((n) => {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, 14, 0, Math.PI * 2);
-        ctx.fillStyle = n.color + "33";
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, 7, 0, Math.PI * 2);
-        ctx.fillStyle = n.color;
-        ctx.fill();
-        ctx.fillStyle = "#e8eaf6";
-        ctx.font = "12px sans-serif";
-        ctx.textAlign = "center";
+        ctx.beginPath(); ctx.arc(n.x, n.y, 14, 0, Math.PI * 2);
+        ctx.fillStyle = n.color + "33"; ctx.fill();
+        ctx.beginPath(); ctx.arc(n.x, n.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = n.color; ctx.fill();
+        ctx.fillStyle = "#e8eaf6"; ctx.font = "12px sans-serif"; ctx.textAlign = "center";
         ctx.fillText(n.id, n.x, n.y - 16);
-        ctx.fillStyle = "#6b7195";
-        ctx.font = "10px sans-serif";
+        ctx.fillStyle = "#6b7195"; ctx.font = "10px sans-serif";
         ctx.fillText(n.type, n.x, n.y + 24);
       });
-
       requestAnimationFrame(step);
     }
     step();
+
+    window.addEventListener("resize", () => { ({ W, H } = resize()); });
   }
 
   // ── 测验 ──────────────────────────────────────────────
@@ -289,7 +326,7 @@
       opt.addEventListener("click", () => {
         const q = opt.dataset.q;
         const siblings = quiz.querySelectorAll(`.quiz-opt[data-q="${q}"]`);
-        if ([...siblings].some((s) => s.disabled)) return; // 已答
+        if ([...siblings].some((s) => s.disabled)) return;
         const isCorrect = opt.dataset.ok === "1";
         siblings.forEach((s) => {
           s.disabled = true;

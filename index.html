@@ -8,6 +8,17 @@
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
+
+  <!-- ── 移动端顶部 Header ── -->
+  <header class="mobile-header">
+    <button class="menu-btn" id="menuBtn" aria-label="打开目录">☰</button>
+    <div class="header-logo">S</div>
+    <div class="header-title" id="headerTitle">概览与定位</div>
+  </header>
+
+  <!-- ── 遮罩（移动端抽屉打开时） ── -->
+  <div class="overlay" id="overlay"></div>
+
 <div class="app">
 
   <!-- ── 侧边栏 ── -->
@@ -208,6 +219,17 @@ compliant = graph.check_decision_rules({"category": "vendor_selection"})  # 策�
         </table>
       </div>
 
+      <h2>从一句话到知识图谱：端到端走一遍</h2>
+      <p>把上面的过程串起来，你就能直观理解 Semantica 的「消化系统」是怎么工作的：</p>
+      <ol class="steps">
+        <li><b>输入文本</b>——<code>"Apple Inc. was founded by Steve Jobs in 1976 in Cupertino."</code></li>
+        <li><b>NER 抽取实体</b>——识别出 <code>Apple Inc.</code>（ORG）、<code>Steve Jobs</code>（PERSON）、<code>1976</code>（DATE）、<code>Cupertino</code>（LOCATION）。</li>
+        <li><b>关系抽取</b>——识别 <code>(Steve Jobs, founded, Apple Inc.)</code> 与 <code>(Apple Inc., located_in, Cupertino)</code>。</li>
+        <li><b>构图</b>——<code>GraphBuilder</code> 把实体变成节点、关系变成有向边。</li>
+        <li><b>溯源</b>——每个节点/边记录「来自哪份文档、用哪种抽取方法」。</li>
+      </ol>
+      <p>这一步的产出，就是后面所有推理、决策、审计的基础。记住这条链：<mark>文本 → 实体 + 关系 → 三元组 → 图 → 溯源</mark>。</p>
+
       <h2>知识图谱 vs 向量库</h2>
       <p>两者都为 AI 检索存储信息，但<strong class="strong">用途不同</strong>：</p>
       <div class="tabs">
@@ -254,6 +276,14 @@ compliant = graph.check_decision_rules({"category": "vendor_selection"})  # 策�
           </tbody>
         </table>
       </div>
+
+      <h2>Embedding 是怎么工作的？</h2>
+      <p>Embedding 把文本变成<strong class="strong">稠密数值向量</strong>，让 AI 能度量语义相似度——即使措辞不同，含义相近的文本在向量空间里也靠得近。</p>
+      <div class="callout info">
+        <span class="co-ico">◉</span>
+        <p><b>直觉：</b>把「Apple」「苹果公司」「水果」想象成三维空间里的点。<code>Apple</code> 与 <code>苹果公司</code> 距离很近（语义相同），与 <code>水果</code> 距离稍远（有歧义）。<strong class="strong">余弦相似度</strong>度量两个向量的夹角——同向为 1，正交为 0。</p>
+      </div>
+      <p>Semantica 用 embedding 做五件事：<strong class="strong">语义检索</strong>（按意义而非关键词）、<strong class="strong">实体消歧</strong>（跨源匹配同一实体）、<strong class="strong">判例检索</strong>（找相似历史决策）、<strong class="strong">GraphRAG 检索</strong>（混合向量 + 图遍历）、<strong class="strong">距离智能</strong>（任意节点集间的 N×N 语义距离矩阵）。</p>
 
       <h2>时序智能（Temporal）</h2>
       <p>知识会随时间变化。时序图为节点与边附加 <code>valid_from</code> / <code>valid_until</code> 窗口，支持<strong class="strong">时点查询</strong>与历史分析。支持 Allen 区间代数（全部 13 种时序关系）、OWL-Time 导出、<code>recorded_at</code> 戳记。</p>
@@ -501,9 +531,29 @@ graph_reasoner.add_rule({
 inferences = graph_reasoner.infer(kg)</code></pre></div>
         </div>
       </div>
-    </section>
 
-    <!-- ═══════════════ 本体与治理 ═══════════════ -->
+      <h2>看一次推理是怎么「一步步」发生的</h2>
+      <p>这是 Semantica 推理「可解释」的关键——每个新事实都记录了<strong class="strong">用了哪条规则、基于哪些前提</strong>。以前向链为例：</p>
+      <div class="codeblock" data-lang="text"><div class="codebar"><span class="lang">推理执行轨迹（trace）</span><button class="copy-btn">复制</button></div><pre><code>已知事实:
+  F1: Alice is_a Manager
+规则:
+  R1: IF (?x is_a Manager) THEN (?x has_authority true)
+
+第 1 轮匹配:
+  R1 的条件 [?x=Alice, Manager=Manager] ✓ 匹配 F1
+  → 推导出新事实 F2: Alice has_authority true
+  → 记录推理路径: F2 ← R1 ← [F1]
+
+第 2 轮匹配:
+  无新事实可推导 → 达到不动点，停止
+
+最终结论 + 完整解释路径（可审计）:
+  "Alice has_authority true"  ←  规则 R1  ←  前提 "Alice is_a Manager"</code></pre></div>
+      <div class="callout tip">
+        <span class="co-ico">✓</span>
+        <p><b>为什么这很重要？</b>黑盒推理只给你结论；Semantica 给你<strong class="strong">结论 + 规则 + 前提</strong>的完整链条。审计员能逐条验证，这就是「可解释 AI」在系统层面的落地。</p>
+      </div>
+    </section>
     <section class="chapter" id="ontology">
       <div class="chapter-head">
         <span class="kicker">Ontology & Governance</span>
@@ -777,6 +827,33 @@ results.forEach(x => console.log("  ", x.conclusion, "<- 前提:", x.premises.jo
         <p><b>教学理念：</b>每个阶段都遵循「<strong class="strong">先写测试，再写实现</strong>」的 TDD 路径，采用真实测试（无 mock），并以 ≥95% 覆盖率验收。你会看到 Python 概念如何 1:1 映射到 TypeScript 类型系统。</p>
       </div>
 
+      <h2>环境准备（5 分钟）</h2>
+      <p>开始前请确认本地环境就绪：</p>
+      <div class="codeblock" data-lang="bash"><div class="codebar"><span class="lang">Bash · 环境检查</span><button class="copy-btn">复制</button></div><pre><code>node --version    # 需要 ≥ 20（推荐 22 LTS）
+npm --version     # 随 Node 附带
+# 可选：用 pnpm 更快
+npm i -g pnpm</code></pre></div>
+
+      <div class="goal-box">
+        <div class="g-title">动手准备</div>
+        <p>新建项目目录并初始化：<code>mkdir semantica-ts && cd semantica-ts && npm init -y</code>。整个教程只用<strong class="strong">零运行时依赖</strong>（仅 devDependencies：typescript / vitest / @vitest/coverage-v8），核心逻辑全部手写，这样你才能真正理解每一行。</p>
+      </div>
+
+      <h2>TDD 循环：每一阶段的科学节奏</h2>
+      <p>每个阶段严格遵循这个循环，<strong class="strong">绝不跳步</strong>：</p>
+      <ol class="steps">
+        <li><b>写测试</b>——先定义「什么算对」：边界、异常、时序、序列化。</li>
+        <li><b>跑测试看它红</b>——确认测试真的在测东西（<code>npx vitest run</code> 报错）。</li>
+        <li><b>写最小实现</b>——让测试变绿，不做过度设计。</li>
+        <li><b>重构</b>——在绿色状态下优化命名、抽取重复、理顺结构。</li>
+        <li><b>覆盖率验收</b>——<code>npx vitest run --coverage</code> 确认 ≥95% 每维度。</li>
+      </ol>
+
+      <div class="callout warn">
+        <span class="co-ico">⚠</span>
+        <p><b>为什么坚持先写测试？</b>因为「先写实现再补测试」会不自觉地只测你已经写对的分支，漏掉边界。<strong class="strong">先写测试</strong>强迫你在写代码前就想清楚：什么输入合法？什么输入非法？边界在哪？这恰恰是复刻一个工业级库时最需要想清楚的事。</p>
+      </div>
+
       <h2>教程地图（8 个阶段）</h2>
       <div class="table-wrap">
         <table>
@@ -807,6 +884,12 @@ results.forEach(x => console.log("  ", x.conclusion, "<- 前提:", x.premises.jo
         <span class="kicker">Stage 0</span>
         <h1>阶段 0 · 项目脚手架</h1>
         <p class="lede">先搭好一个严格的 TypeScript 工程地基：ESM、严格模式、vitest + v8 覆盖率门槛。</p>
+      </div>
+
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>建立可运行、可测试、可度量的工程骨架。</p>
+        <p><b>验收：</b><code>npm run typecheck</code> 通过；<code>npm test</code> 能跑（即使 0 个测试）；<code>npm run coverage</code> 能输出覆盖率报告。三个脚本缺一不可。</p>
       </div>
 
       <h2>package.json</h2>
@@ -864,6 +947,12 @@ export default defineConfig({
         <span class="kicker">Stage 1</span>
         <h1>阶段 1 · 核心数据模型</h1>
         <p class="lede">把 Semantica 的 Python dataclass 1:1 映射到 TypeScript 类型。这是整个复刻的「词汇表」。</p>
+      </div>
+
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>定义 <code>GraphNode</code> / <code>GraphEdge</code> / <code>Decision</code> / <code>Triple</code> / <code>Rule</code> 五个核心类型，以及工具函数（UUID、SHA-256、Jaro–Winkler、余弦相似度、时序解析）。</p>
+        <p><b>验收：</b>为 <code>utils.ts</code> 写测试——<code>jaroWinkler("Apple","Apple")</code> 接近 1，<code>cosineSimilarity([1,0],[0,1])</code> 为 0，<code>normalizeTemporalInput</code> 对非法输入抛错。</p>
       </div>
 
       <div class="table-wrap">
@@ -930,6 +1019,12 @@ export interface TriplePattern { subject: string; predicate: string; object: str
         <p class="lede">这是 Semantica 的核心数据结构。一个内存图存储，支持类型索引、BFS 邻域发现、时序快照与 JSON 序列化。</p>
       </div>
 
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>实现 <code>addNode</code> / <code>addEdge</code> / <code>addNodes</code> / <code>addEdges</code>（含灵活的字段归一化）、<code>getNeighbors</code>（BFS + hop 距离 + 关系过滤 + 权重过滤）、<code>stateAt</code>（时序快照）、<code>toKgDict</code> / <code>loadData</code>（序列化往返）。</p>
+        <p><b>验收：</b>写测试覆盖——节点去重、边/节点字段归一化（<code>source_id</code> vs <code>source</code>）、BFS 多跳、时序过滤、JSON 往返一致性。</p>
+      </div>
+
       <h2>数据结构的直觉</h2>
       <p><code>ContextGraph</code> 内部维护：<code>nodes</code>（Map，按 id 索引）、<code>edges</code>（数组）、<code>adjacency</code>（邻接表）、<code>nodeTypeIndex</code>（按类型索引）、<code>edgeTypeIndex</code>（按边类型索引）。</p>
 
@@ -987,6 +1082,12 @@ export interface TriplePattern { subject: string; predicate: string; object: str
         <p class="lede">把决策做成「一等公民」：记录、因果关联、判例检索、影响分析、策略门禁。</p>
       </div>
 
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>实现 <code>recordDecision</code>（含输入校验 + 作为图节点存储）、<code>addCausalRelationship</code>（拼写归一化 + 跳过非决策节点）、<code>traceCausalChain</code>（BFS 上游/下游）、<code>findSimilarDecisions</code>（判例检索）、<code>checkDecisionRules</code>（策略门禁）。</p>
+        <p><b>验收：</b>测试覆盖——空 category 抛错、confidence 越界抛错、<code>"causes"</code> 归一化为 <code>"CAUSED"</code>、因果链上游/下游方向正确、判例检索按相似度排序。</p>
+      </div>
+
       <div class="codeblock" data-lang="typescript"><div class="codebar"><span class="lang">TypeScript · DecisionEngine</span><button class="copy-btn">复制</button></div><pre><code>class DecisionEngine {
   recordDecision(input: RecordDecisionInput): string {
     // 校验 + 归一化 + 生成 id
@@ -1028,6 +1129,12 @@ export interface TriplePattern { subject: string; predicate: string; object: str
         <span class="kicker">Stage 4</span>
         <h1>阶段 4 · 推理引擎</h1>
         <p class="lede">复刻六种推理策略中最核心的四种：前向链、Rete、Datalog、SPARQL。</p>
+      </div>
+
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>实现 <code>Reasoner</code>（前向链 + 合一）、<code>ReteEngine</code>（alpha 记忆）、<code>DatalogReasoner</code>（递归 Horn 子句 + 不动点）、<code>SparqlReasoner</code>（模式匹配）。</p>
+        <p><b>验收：</b>测试覆盖——前向链推导 <code>Alice has_authority true</code>、规则去重幂等、Datalog 传递闭包推导出 <code>ancestor(alice, carol)</code>、SPARQL 变量绑定正确。</p>
       </div>
 
       <h2>前向链推理的核心：合一（unification）</h2>
@@ -1075,6 +1182,12 @@ reasoner.query("ancestor(alice, Z)");
         <p class="lede">每个事实都要能回答「从哪来、怎么来的、何时来的、可验证吗」。</p>
       </div>
 
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>实现 <code>ProvenanceManager</code> 的 <code>trackEntity</code>（含 SHA-256 checksum）、<code>verifyIntegrity</code>、<code>getLineage</code>、<code>toProvoTurtle</code>。</p>
+        <p><b>验收：</b>测试覆盖——血缘可追溯、checksum 校验通过/失败、PROV-O Turtle 导出包含 <code>prov:wasDerivedFrom</code>。</p>
+      </div>
+
       <div class="codeblock" data-lang="typescript"><div class="codebar"><span class="lang">TypeScript · ProvenanceManager</span><button class="copy-btn">复制</button></div><pre><code>class ProvenanceManager {
   trackEntity(entity: string, source: string, meta: {...} = {}): void {
     const record: ProvenanceRecord = {
@@ -1111,6 +1224,12 @@ reasoner.query("ancestor(alice, Z)");
         <p class="lede">中心性、社区检测、最短路、链路预测——都是纯函数，供 ContextGraph 复用而不产生循环依赖。</p>
       </div>
 
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>实现 <code>computeCentrality</code>（度/介数/接近/特征向量/PageRank）、<code>detectCommunities</code>（Louvain 简化）、<code>dijkstraShortestPath</code>、<code>commonNeighbors</code>（链路预测）、<code>nodeSimilarity</code>。</p>
+        <p><b>验收：</b>测试覆盖——中心性数值正确、社区检测分区、最短路路径、不可达返回 null、无 embedding 时相似度为 0。</p>
+      </div>
+
       <div class="codeblock" data-lang="typescript"><div class="codebar"><span class="lang">TypeScript · 中心性（Brandes 算法）</span><button class="copy-btn">复制</button></div><pre><code>function betweennessCentrality(adj: Adjacency, nodes: string[]): Record&lt;string, number&gt; {
   const scores = Object.fromEntries(nodes.map(n => [n, 0]));
   for (const s of nodes) {
@@ -1145,6 +1264,12 @@ reasoner.query("ancestor(alice, Z)");
         <span class="kicker">Stage 7</span>
         <h1>阶段 7 · 存储与导出</h1>
         <p class="lede">向量库（语义 + 混合检索）与导出器（RDF Turtle、JSON-LD、N-Triples、CSV、Cypher）。</p>
+      </div>
+
+      <div class="goal-box">
+        <div class="g-title">目标与验收标准</div>
+        <p><b>目标：</b>实现 <code>VectorStore</code>（余弦 top-k + 关键词 + RRF 混合检索）、<code>RDFExporter</code>（Turtle/JSON-LD/N-Triples）、<code>CSVExporter</code>、<code>CypherExporter</code>。</p>
+        <p><b>验收：</b>测试覆盖——向量维度不匹配抛错、混合检索排序正确、RDF 导出含 <code>rdf:type</code>、CSV 转义特殊字符、Cypher 含 <code>CREATE</code>。</p>
       </div>
 
       <div class="codeblock" data-lang="typescript"><div class="codebar"><span class="lang">TypeScript · 混合检索（RRF 融合）</span><button class="copy-btn">复制</button></div><pre><code>hybridSearch(query: string, queryVector: number[], topK = 10) {
@@ -1294,6 +1419,22 @@ npm run coverage     # 97.92% statements · 100% functions · 82.42% branches</c
 
   </main>
 </div>
+
+<!-- ── 底部导航条（上一章 / 下一章） ── -->
+<nav class="bottom-nav">
+  <button class="bn-btn" id="bnPrev" disabled>
+    <span style="text-align:left">
+      <span class="bn-label">← 上一章</span>
+      <span class="bn-title" id="bnPrevTitle"></span>
+    </span>
+  </button>
+  <button class="bn-btn primary" id="bnNext" disabled>
+    <span style="text-align:right">
+      <span class="bn-label">下一章 →</span>
+      <span class="bn-title" id="bnNextTitle"></span>
+    </span>
+  </button>
+</nav>
 
 <script src="assets/semantica-playground.js"></script>
 <script src="assets/app.js"></script>
